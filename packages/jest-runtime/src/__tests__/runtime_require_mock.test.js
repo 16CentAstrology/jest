@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -89,8 +89,8 @@ describe('Runtime', () => {
       // are not correctly falling back to 'native' require.
       try {
         runtime.requireMock(__filename, './test_root/NativeModule.node');
-      } catch (e) {
-        error = e;
+      } catch (thrownError) {
+        error = thrownError;
       } finally {
         expect(error.message).toMatch(
           /NativeModule.node: file too short|NativeModule.node, 0x0001|not a valid Win\d+ application/,

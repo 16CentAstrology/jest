@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -21,14 +21,11 @@ const testPath = (names: Array<string>) => {
 
   // Jest tests snapshotSerializers in order preceding built-in serializers.
   // Therefore, add in reverse because the last added is the first tested.
-  added
-    .concat()
-    .reverse()
-    .forEach(serializer => addSerializer(serializer));
+  for (const serializer of [...added].reverse()) addSerializer(serializer);
 
   const next = getSerializers();
   expect(next).toHaveLength(added.length + prev.length);
-  expect(next).toEqual(added.concat(prev));
+  expect(next).toEqual([...added, ...prev]);
 };
 
 it('gets plugins', () => {

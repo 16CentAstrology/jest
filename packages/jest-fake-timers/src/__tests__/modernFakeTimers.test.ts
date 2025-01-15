@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -102,6 +102,30 @@ describe('FakeTimers', () => {
       const timers = new FakeTimers({config: makeProjectConfig(), global});
       timers.useFakeTimers();
       expect(global.clearImmediate).not.toBe(origClearImmediate);
+    });
+
+    it('mocks requestAnimationFrame if it exists on global', () => {
+      const global = {
+        Date,
+        clearTimeout,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      expect(global.requestAnimationFrame).toBeDefined();
+    });
+
+    it('mocks cancelAnimationFrame if it exists on global', () => {
+      const global = {
+        Date,
+        cancelAnimationFrame: () => {},
+        clearTimeout,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      expect(global.cancelAnimationFrame).toBeDefined();
     });
   });
 
@@ -227,14 +251,14 @@ describe('FakeTimers', () => {
       const mock6 = jest.fn(() => runOrder.push('mock6'));
 
       global.setTimeout(mock1, 100);
-      global.setTimeout(mock2, NaN);
+      global.setTimeout(mock2, Number.NaN);
       global.setTimeout(mock3, 0);
       const intervalHandler = global.setInterval(() => {
         mock4();
         global.clearInterval(intervalHandler);
       }, 200);
-      global.setTimeout(mock5, Infinity);
-      global.setTimeout(mock6, -Infinity);
+      global.setTimeout(mock5, Number.POSITIVE_INFINITY);
+      global.setTimeout(mock6, Number.NEGATIVE_INFINITY);
 
       timers.runAllTimers();
       expect(runOrder).toEqual([
@@ -570,6 +594,202 @@ describe('FakeTimers', () => {
     });
   });
 
+  describe('advanceTimersToNextFrame', () => {
+    it('runs scheduled animation frame callbacks in order', () => {
+      const global = {
+        Date,
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const runOrder: Array<string> = [];
+      const mock1 = jest.fn(() => runOrder.push('mock1'));
+      const mock2 = jest.fn(() => runOrder.push('mock2'));
+      const mock3 = jest.fn(() => runOrder.push('mock3'));
+
+      global.requestAnimationFrame(mock1);
+      global.requestAnimationFrame(mock2);
+      global.requestAnimationFrame(mock3);
+
+      timers.advanceTimersToNextFrame();
+
+      expect(runOrder).toEqual(['mock1', 'mock2', 'mock3']);
+    });
+
+    it('should only run currently scheduled animation frame callbacks', () => {
+      const global = {
+        Date,
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const runOrder: Array<string> = [];
+      function run() {
+        runOrder.push('first-frame');
+
+        // scheduling another animation frame in the first frame
+        global.requestAnimationFrame(() => runOrder.push('second-frame'));
+      }
+
+      global.requestAnimationFrame(run);
+
+      // only the first frame should be executed
+      timers.advanceTimersToNextFrame();
+
+      expect(runOrder).toEqual(['first-frame']);
+
+      timers.advanceTimersToNextFrame();
+
+      expect(runOrder).toEqual(['first-frame', 'second-frame']);
+    });
+
+    it('should allow cancelling of scheduled animation frame callbacks', () => {
+      const global = {
+        Date,
+        cancelAnimationFrame: () => {},
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      const callback = jest.fn();
+      timers.useFakeTimers();
+
+      const timerId = global.requestAnimationFrame(callback);
+      global.cancelAnimationFrame(timerId);
+
+      timers.advanceTimersToNextFrame();
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it('should only advance as much time is needed to get to the next frame', () => {
+      const global = {
+        Date,
+        cancelAnimationFrame: () => {},
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const runOrder: Array<string> = [];
+      const start = global.Date.now();
+
+      const callback = () => runOrder.push('frame');
+      global.requestAnimationFrame(callback);
+
+      // Advancing timers less than a frame (which is 16ms)
+      timers.advanceTimersByTime(6);
+      expect(global.Date.now()).toEqual(start + 6);
+
+      // frame not yet executed
+      expect(runOrder).toEqual([]);
+
+      // move timers forward to execute frame
+      timers.advanceTimersToNextFrame();
+
+      // frame has executed as time has moved forward 10ms to get to the 16ms frame time
+      expect(runOrder).toEqual(['frame']);
+      expect(global.Date.now()).toEqual(start + 16);
+    });
+
+    it('should execute any timers on the way to the animation frame', () => {
+      const global = {
+        Date,
+        cancelAnimationFrame: () => {},
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const runOrder: Array<string> = [];
+
+      global.requestAnimationFrame(() => runOrder.push('frame'));
+
+      // scheduling a timeout that will be executed on the way to the frame
+      global.setTimeout(() => runOrder.push('timeout'), 10);
+
+      // move timers forward to execute frame
+      timers.advanceTimersToNextFrame();
+
+      expect(runOrder).toEqual(['timeout', 'frame']);
+    });
+
+    it('should not execute any timers scheduled inside of an animation frame callback', () => {
+      const global = {
+        Date,
+        cancelAnimationFrame: () => {},
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const runOrder: Array<string> = [];
+
+      global.requestAnimationFrame(() => {
+        runOrder.push('frame');
+        // scheduling a timer inside of a frame
+        global.setTimeout(() => runOrder.push('timeout'), 1);
+      });
+
+      timers.advanceTimersToNextFrame();
+
+      // timeout not yet executed
+      expect(runOrder).toEqual(['frame']);
+
+      // validating that the timer will still be executed
+      timers.advanceTimersByTime(1);
+      expect(runOrder).toEqual(['frame', 'timeout']);
+    });
+
+    it('should call animation frame callbacks with the latest system time', () => {
+      const global = {
+        Date,
+        clearTimeout,
+        performance,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const callback = jest.fn();
+
+      global.requestAnimationFrame(callback);
+
+      timers.advanceTimersToNextFrame();
+
+      // `requestAnimationFrame` callbacks are called with a `DOMHighResTimeStamp`
+      expect(callback).toHaveBeenCalledWith(global.performance.now());
+    });
+  });
+
   describe('reset', () => {
     it('resets all pending setTimeouts', () => {
       const global = {
@@ -647,6 +867,25 @@ describe('FakeTimers', () => {
       global.setTimeout(mock1, 100);
 
       timers.advanceTimersByTime(50);
+      expect(mock1).toHaveBeenCalledTimes(0);
+    });
+
+    it('resets all scheduled animation frames', () => {
+      const global = {
+        Date,
+        clearTimeout,
+        process,
+        requestAnimationFrame: () => -1,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const mock1 = jest.fn();
+      global.requestAnimationFrame(mock1);
+
+      timers.reset();
+      timers.runAllTimers();
       expect(mock1).toHaveBeenCalledTimes(0);
     });
   });
@@ -957,6 +1196,137 @@ describe('FakeTimers', () => {
       timers.clearAllTimers();
 
       expect(timers.getTimerCount()).toBe(0);
+    });
+  });
+
+  describe('advanceTimersToNextTimerAsync', () => {
+    it('should advance the clock at the moment of the first scheduled timer', async () => {
+      const global = {
+        Date,
+        Promise,
+        clearTimeout,
+        process,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      timers.setSystemTime(0);
+
+      const spy = jest.fn();
+      global.setTimeout(async () => {
+        await Promise.resolve();
+        global.setTimeout(spy, 100);
+      }, 100);
+
+      await timers.advanceTimersToNextTimerAsync();
+      expect(timers.now()).toBe(100);
+
+      await timers.advanceTimersToNextTimerAsync();
+      expect(timers.now()).toBe(200);
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should advance the clock at the moment of the n-th scheduled timer', async () => {
+      const global = {
+        Date,
+        Promise,
+        clearTimeout,
+        process,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      timers.setSystemTime(0);
+
+      const spy = jest.fn();
+      global.setTimeout(async () => {
+        await Promise.resolve();
+        global.setTimeout(spy, 100);
+      }, 100);
+
+      await timers.advanceTimersToNextTimerAsync(2);
+
+      expect(timers.now()).toBe(200);
+      expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe('runAllTimersAsync', () => {
+    it('should advance the clock to the last scheduled timer', async () => {
+      const global = {
+        Date,
+        Promise,
+        clearTimeout,
+        process,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      timers.setSystemTime(0);
+
+      const spy = jest.fn();
+      const spy2 = jest.fn();
+      global.setTimeout(async () => {
+        await Promise.resolve();
+        global.setTimeout(spy, 100);
+        global.setTimeout(spy2, 200);
+      }, 100);
+
+      await timers.runAllTimersAsync();
+      expect(timers.now()).toBe(300);
+      expect(spy).toHaveBeenCalled();
+      expect(spy2).toHaveBeenCalled();
+    });
+  });
+
+  describe('runOnlyPendingTimersAsync', () => {
+    it('should advance the clock to the last scheduled timer', async () => {
+      const global = {
+        Date,
+        Promise,
+        clearTimeout,
+        process,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+      timers.setSystemTime(0);
+
+      const spy = jest.fn();
+      const spy2 = jest.fn();
+      global.setTimeout(spy, 50);
+      global.setTimeout(spy2, 50);
+      global.setTimeout(async () => {
+        await Promise.resolve();
+      }, 100);
+
+      await timers.runOnlyPendingTimersAsync();
+      expect(timers.now()).toBe(100);
+      expect(spy).toHaveBeenCalled();
+      expect(spy2).toHaveBeenCalled();
+    });
+  });
+
+  describe('advanceTimersByTimeAsync', () => {
+    it('should advance the clock', async () => {
+      const global = {
+        Date,
+        Promise,
+        clearTimeout,
+        process,
+        setTimeout,
+      } as unknown as typeof globalThis;
+      const timers = new FakeTimers({config: makeProjectConfig(), global});
+      timers.useFakeTimers();
+
+      const spy = jest.fn();
+      global.setTimeout(async () => {
+        await Promise.resolve();
+        global.setTimeout(spy, 100);
+      }, 100);
+
+      await timers.advanceTimersByTimeAsync(200);
+      expect(spy).toHaveBeenCalled();
     });
   });
 

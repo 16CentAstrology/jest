@@ -174,7 +174,7 @@ This is how `createMockFromModule` will mock the following data types:
 
 #### `Function`
 
-Creates a new [mock function](mock-functions). The new function has no formal parameters and when called will return `undefined`. This functionality also applies to `async` functions.
+Creates a new [mock function](MockFunctionAPI.md). The new function has no formal parameters and when called will return `undefined`. This functionality also applies to `async` functions.
 
 #### `Class`
 
@@ -344,23 +344,29 @@ Returns the `jest` object for chaining.
 
 :::tip
 
-Writing tests in TypeScript? Use [`jest.Mocked`](MockFunctionAPI.md/#jestmockedsource) utility type or [`jest.mocked()`](MockFunctionAPI.md/#jestmockedsource-options) helper method to have your mocked modules typed.
+Writing tests in TypeScript? Use the [`jest.Mocked`](MockFunctionAPI.md#jestmockedsource) utility type or the [`jest.mocked()`](MockFunctionAPI.md#jestmockedsource-options) helper method to have your mocked modules typed.
 
 :::
 
 ### `jest.Mocked<Source>`
 
-See [TypeScript Usage](MockFunctionAPI.md/#jestmockedsource) chapter of Mock Functions page for documentation.
+See [TypeScript Usage](MockFunctionAPI.md#jestmockedsource) chapter of Mock Functions page for documentation.
 
 ### `jest.mocked(source, options?)`
 
-See [TypeScript Usage](MockFunctionAPI.md/#jestmockedsource-options) chapter of Mock Functions page for documentation.
+See [TypeScript Usage](MockFunctionAPI.md#jestmockedsource-options) chapter of Mock Functions page for documentation.
 
 ### `jest.unmock(moduleName)`
 
 Indicates that the module system should never return a mocked version of the specified module from `require()` (e.g. that it should always return the real module).
 
 The most common use of this API is for specifying the module a given test intends to be testing (and thus doesn't want automatically mocked).
+
+Returns the `jest` object for chaining.
+
+### `jest.deepUnmock(moduleName)`
+
+Indicates that the module system should never return a mocked version of the specified module and its dependencies.
 
 Returns the `jest` object for chaining.
 
@@ -522,6 +528,51 @@ getRandom(); // Always returns 10
 
 Returns a mock module instead of the actual module, bypassing all checks on whether the module should be required normally or not.
 
+### `jest.onGenerateMock(cb)`
+
+Registers a callback function that is invoked whenever Jest generates a mock for a module. This callback allows you to modify the mock before it is returned to the rest of your tests.
+
+Parameters for callback:
+
+1. `moduleName: string` - The name of the module that is being mocked.
+2. `moduleMock: T` - The mock object that Jest has generated for the module. This object can be modified or replaced before returning.
+
+Behaviour:
+
+- If multiple callbacks are registered via consecutive `onGenerateMock` calls, they will be invoked **in the order they were added**.
+- Each callback receives the output of the previous callback as its `moduleMock`. This makes it possible to apply multiple layers of transformations to the same mock.
+
+```js
+jest.onGenerateMock((moduleName, moduleMock) => {
+  // Inspect the module name and decide how to transform the mock
+  if (moduleName.includes('Database')) {
+    // For demonstration, let's replace a method with our own custom mock
+    moduleMock.connect = jest.fn().mockImplementation(() => {
+      console.log('Connected to mock DB');
+    });
+  }
+
+  // Return the (potentially modified) mock
+  return moduleMock;
+});
+
+// Apply mock for module
+jest.mock('./Database');
+
+// Later in your tests
+import Database from './Database';
+// The `Database` mock now has any transformations applied by our callback
+```
+
+:::note
+
+The `onGenerateMock` callback is not called for manually created mocks, such as:
+
+- Mocks defined in a `__mocks__` folder
+- Explicit factories provided via `jest.mock('moduleName', () => { ... })`
+
+:::
+
 ### `jest.resetModules()`
 
 Resets the module registry - the cache of all required modules. This is useful to isolate modules where local state might conflict between tests.
@@ -568,6 +619,20 @@ jest.isolateModules(() => {
 const otherCopyOfMyModule = require('myModule');
 ```
 
+### `jest.isolateModulesAsync(fn)`
+
+`jest.isolateModulesAsync()` is the equivalent of `jest.isolateModules()`, but for async callbacks. The caller is expected to `await` the completion of `isolateModulesAsync`.
+
+```js
+let myModule;
+await jest.isolateModulesAsync(async () => {
+  myModule = await import('myModule');
+  // do async stuff here
+});
+
+const otherCopyOfMyModule = await import('myModule');
+```
+
 ## Mock Functions
 
 ### `jest.fn(implementation?)`
@@ -586,7 +651,7 @@ console.log(returnsTrue()); // true;
 
 :::tip
 
-See [Mock Functions](MockFunctionAPI.md#jestfnimplementation) page for details on TypeScript usage.
+See the [Mock Functions](MockFunctionAPI.md#jestfnimplementation) page for details on TypeScript usage.
 
 :::
 
@@ -594,19 +659,68 @@ See [Mock Functions](MockFunctionAPI.md#jestfnimplementation) page for details o
 
 Determines if the given function is a mocked function.
 
+### `jest.replaceProperty(object, propertyKey, value)`
+
+Replace `object[propertyKey]` with a `value`. The property must already exist on the object. The same property might be replaced multiple times. Returns a Jest [replaced property](MockFunctionAPI.md#replaced-properties).
+
+:::note
+
+To mock properties that are defined as getters or setters, use [`jest.spyOn(object, methodName, accessType)`](#jestspyonobject-methodname-accesstype) instead. To mock functions, use [`jest.spyOn(object, methodName)`](#jestspyonobject-methodname) instead.
+
+:::
+
+:::tip
+
+All properties replaced with `jest.replaceProperty` could be restored to the original value by calling [jest.restoreAllMocks](#jestrestoreallmocks) on [afterEach](GlobalAPI.md#aftereachfn-timeout) method.
+
+:::
+
+Example:
+
+```js
+const utils = {
+  isLocalhost() {
+    return process.env.HOSTNAME === 'localhost';
+  },
+};
+
+module.exports = utils;
+```
+
+Example test:
+
+```js
+const utils = require('./utils');
+
+afterEach(() => {
+  // restore replaced property
+  jest.restoreAllMocks();
+});
+
+test('isLocalhost returns true when HOSTNAME is localhost', () => {
+  jest.replaceProperty(process, 'env', {HOSTNAME: 'localhost'});
+  expect(utils.isLocalhost()).toBe(true);
+});
+
+test('isLocalhost returns false when HOSTNAME is not localhost', () => {
+  jest.replaceProperty(process, 'env', {HOSTNAME: 'not-localhost'});
+  expect(utils.isLocalhost()).toBe(false);
+});
+```
+
 ### `jest.spyOn(object, methodName)`
 
 Creates a mock function similar to `jest.fn` but also tracks calls to `object[methodName]`. Returns a Jest [mock function](MockFunctionAPI.md).
 
 :::note
 
-By default, `jest.spyOn` also calls the **spied** method. This is different behavior from most other test libraries. If you want to overwrite the original function, you can use `jest.spyOn(object, methodName).mockImplementation(() => customImplementation)` or `object[methodName] = jest.fn(() => customImplementation);`
+By default, `jest.spyOn` also calls the **spied** method. This is different behavior from most other test libraries. If you want to overwrite the original function, you can use `jest.spyOn(object, methodName).mockImplementation(() => customImplementation)` or `object[methodName] = jest.fn(() => customImplementation)`.
 
 :::
 
 :::tip
 
-Since `jest.spyOn` is a mock. You could restore the initial state calling [jest.restoreAllMocks](#jestrestoreallmocks) on [afterEach](GlobalAPI.md#aftereachfn-timeout) method.
+Since `jest.spyOn` is a mock, you could restore the initial state by calling [`jest.restoreAllMocks`](#jestrestoreallmocks) in the body of the callback passed to the [afterEach](GlobalAPI.md#aftereachfn-timeout) hook.
 
 :::
 
@@ -640,6 +754,64 @@ test('plays video', () => {
   expect(isPlaying).toBe(true);
 });
 ```
+
+#### Spied methods and the `using` keyword
+
+If your codebase is set up to transpile the ["explicit resource management"](https://github.com/tc39/proposal-explicit-resource-management) (e.g. if you are using TypeScript >= 5.2 or the `@babel/plugin-proposal-explicit-resource-management` plugin), you can use `spyOn` in combination with the `using` keyword:
+
+```js
+test('logs a warning', () => {
+  using spy = jest.spyOn(console.warn);
+  doSomeThingWarnWorthy();
+  expect(spy).toHaveBeenCalled();
+});
+```
+
+That code is semantically equal to
+
+```js
+test('logs a warning', () => {
+  let spy;
+  try {
+    spy = jest.spyOn(console.warn);
+    doSomeThingWarnWorthy();
+    expect(spy).toHaveBeenCalled();
+  } finally {
+    spy.mockRestore();
+  }
+});
+```
+
+That way, your spy will automatically be restored to the original value once the current code block is left.
+
+You can even go a step further and use a code block to restrict your mock to only a part of your test without hurting readability.
+
+```js
+test('testing something', () => {
+  {
+    using spy = jest.spyOn(console.warn);
+    setupStepThatWillLogAWarning();
+  }
+  // here, console.warn is already restored to the original value
+  // your test can now continue normally
+});
+```
+
+:::note
+
+If you get a warning that `Symbol.dispose` does not exist, you might need to polyfill that, e.g. with this code:
+
+```js
+if (!Symbol.dispose) {
+  Object.defineProperty(Symbol, 'dispose', {
+    get() {
+      return Symbol.for('nodejs.dispose');
+    },
+  });
+}
+```
+
+:::
 
 ### `jest.spyOn(object, methodName, accessType?)`
 
@@ -699,6 +871,10 @@ test('plays audio', () => {
 });
 ```
 
+### `jest.Replaced<Source>`
+
+See [TypeScript Usage](MockFunctionAPI.md#replacedpropertyreplacevaluevalue) chapter of Mock Functions page for documentation.
+
 ### `jest.Spied<Source>`
 
 See [TypeScript Usage](MockFunctionAPI.md#jestspiedsource) chapter of Mock Functions page for documentation.
@@ -717,7 +893,7 @@ Returns the `jest` object for chaining.
 
 ### `jest.restoreAllMocks()`
 
-Restores all mocks back to their original value. Equivalent to calling [`.mockRestore()`](MockFunctionAPI.md#mockfnmockrestore) on every mocked function. Beware that `jest.restoreAllMocks()` only works when the mock was created with `jest.spyOn`; other mocks will require you to manually restore them.
+Restores all mocks and replaced properties back to their original value. Equivalent to calling [`.mockRestore()`](MockFunctionAPI.md#mockfnmockrestore) on every mocked function and [`.restore()`](MockFunctionAPI.md#replacedpropertyrestore) on every replaced property. Beware that `jest.restoreAllMocks()` only works for mocks created with [`jest.spyOn()`](#jestspyonobject-methodname) and properties replaced with [`jest.replaceProperty()`](#jestreplacepropertyobject-propertykey-value); other mocks will require you to manually restore them.
 
 ## Fake Timers
 
@@ -766,7 +942,7 @@ type FakeTimersConfig = {
    * The default is `false`.
    */
   legacyFakeTimers?: boolean;
-  /** Sets current system time to be used by fake timers. The default is `Date.now()`. */
+  /** Sets current system time to be used by fake timers, in milliseconds. The default is `Date.now()`. */
   now?: number | Date;
   /**
    * The maximum number of recursive timers that will be run when calling `jest.runAllTimers()`.
@@ -848,6 +1024,16 @@ When this API is called, all pending macro-tasks and micro-tasks will be execute
 
 This is often useful for synchronously executing setTimeouts during a test in order to synchronously assert about some behavior that would only happen after the `setTimeout()` or `setInterval()` callbacks executed. See the [Timer mocks](TimerMocks.md) doc for more information.
 
+### `jest.runAllTimersAsync()`
+
+Asynchronous equivalent of `jest.runAllTimers()`. It allows any scheduled promise callbacks to execute _before_ running the timers.
+
+:::info
+
+This function is not available when using legacy fake timers implementation.
+
+:::
+
 ### `jest.runAllImmediates()`
 
 Exhausts all tasks queued by `setImmediate()`.
@@ -864,17 +1050,57 @@ Executes only the macro task queue (i.e. all tasks queued by `setTimeout()` or `
 
 When this API is called, all timers are advanced by `msToRun` milliseconds. All pending "macro-tasks" that have been queued via `setTimeout()` or `setInterval()`, and would be executed within this time frame will be executed. Additionally, if those macro-tasks schedule new macro-tasks that would be executed within the same time frame, those will be executed until there are no more macro-tasks remaining in the queue, that should be run within `msToRun` milliseconds.
 
+### `jest.advanceTimersByTimeAsync(msToRun)`
+
+Asynchronous equivalent of `jest.advanceTimersByTime(msToRun)`. It allows any scheduled promise callbacks to execute _before_ running the timers.
+
+:::info
+
+This function is not available when using legacy fake timers implementation.
+
+:::
+
 ### `jest.runOnlyPendingTimers()`
 
 Executes only the macro-tasks that are currently pending (i.e., only the tasks that have been queued by `setTimeout()` or `setInterval()` up to this point). If any of the currently pending macro-tasks schedule new macro-tasks, those new tasks will not be executed by this call.
 
 This is useful for scenarios such as one where the module being tested schedules a `setTimeout()` whose callback schedules another `setTimeout()` recursively (meaning the scheduling never stops). In these scenarios, it's useful to be able to run forward in time by a single step at a time.
 
+### `jest.runOnlyPendingTimersAsync()`
+
+Asynchronous equivalent of `jest.runOnlyPendingTimers()`. It allows any scheduled promise callbacks to execute _before_ running the timers.
+
+:::info
+
+This function is not available when using legacy fake timers implementation.
+
+:::
+
 ### `jest.advanceTimersToNextTimer(steps)`
 
 Advances all timers by the needed milliseconds so that only the next timeouts/intervals will run.
 
 Optionally, you can provide `steps`, so it will run `steps` amount of next timeouts/intervals.
+
+### `jest.advanceTimersToNextTimerAsync(steps)`
+
+Asynchronous equivalent of `jest.advanceTimersToNextTimer(steps)`. It allows any scheduled promise callbacks to execute _before_ running the timers.
+
+:::info
+
+This function is not available when using legacy fake timers implementation.
+
+:::
+
+### `jest.advanceTimersToNextFrame()`
+
+Advances all timers by the needed milliseconds to execute callbacks currently scheduled with `requestAnimationFrame`. `advanceTimersToNextFrame()` is a helpful way to execute code that is scheduled using `requestAnimationFrame`.
+
+:::info
+
+This function is not available when using legacy fake timers implementation.
+
+:::
 
 ### `jest.clearAllTimers()`
 
@@ -922,6 +1148,66 @@ Use the [`--showSeed`](CLI.md#--showseed) flag to print the seed in the test rep
 
 :::
 
+### `jest.isEnvironmentTornDown()`
+
+Returns `true` if test environment has been torn down.
+
+### `jest.retryTimes(numRetries, options?)`
+
+Runs failed tests n-times until they pass or until the max number of retries is exhausted.
+
+```js
+jest.retryTimes(3);
+
+test('will fail', () => {
+  expect(true).toBe(false);
+});
+```
+
+If `logErrorsBeforeRetry` option is enabled, error(s) that caused the test to fail will be logged to the console.
+
+```js
+jest.retryTimes(3, {logErrorsBeforeRetry: true});
+
+test('will fail', () => {
+  expect(true).toBe(false);
+});
+```
+
+`waitBeforeRetry` is the number of milliseconds to wait before retrying.
+
+```js
+jest.retryTimes(3, {waitBeforeRetry: 1000});
+
+test('will fail', () => {
+  expect(true).toBe(false);
+});
+```
+
+`retryImmediately` option is used to retry the failed test immediately after the failure. If this option is not specified, the tests are retried after Jest is finished running all other tests in the file.
+
+```js
+jest.retryTimes(3, {retryImmediately: true});
+
+test('will fail', () => {
+  expect(true).toBe(false);
+});
+```
+
+Returns the `jest` object for chaining.
+
+:::caution
+
+`jest.retryTimes()` must be declared at the top level of a test file or in a `describe` block.
+
+:::
+
+:::info
+
+This function is only available with the default [jest-circus](https://github.com/jestjs/jest/tree/main/packages/jest-circus) runner.
+
+:::
+
 ### `jest.setTimeout(timeout)`
 
 Set the default timeout interval (in milliseconds) for all tests and before/after hooks in the test file. This only affects the test file from which this function is called. The default timeout interval is 5 seconds if this method is not called.
@@ -939,27 +1225,3 @@ To set timeout intervals on different tests in the same file, use the [`timeout`
 If you want to set the timeout for all test files, use [`testTimeout`](Configuration.md#testtimeout-number) configuration option.
 
 :::
-
-### `jest.retryTimes(numRetries, options)`
-
-Runs failed tests n-times until they pass or until the max number of retries is exhausted. `options` are optional. This only works with the default [jest-circus](https://github.com/facebook/jest/tree/main/packages/jest-circus) runner! This must live at the top-level of a test file or in a describe block. Retries _will not_ work if `jest.retryTimes()` is called in a `beforeEach` or a `test` block.
-
-Example in a test:
-
-```js
-jest.retryTimes(3);
-test('will fail', () => {
-  expect(true).toBe(false);
-});
-```
-
-If `logErrorsBeforeRetry` is enabled, Jest will log the error(s) that caused the test to fail to the console, providing visibility on why a retry occurred.
-
-```js
-jest.retryTimes(3, {logErrorsBeforeRetry: true});
-test('will fail', () => {
-  expect(true).toBe(false);
-});
-```
-
-Returns the `jest` object for chaining.

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -63,20 +63,20 @@ function promisifyLifeCycleFunction(
       return originalFn.call(env, asyncJestLifecycleWithCallback, timeout);
     }
 
+    // eslint-disable-next-line unicorn/error-message
     const extraError = new Error();
 
     // Without this line v8 stores references to all closures
     // in the stack in the Error object. This line stringifies the stack
     // property to allow garbage-collecting objects on the stack
     // https://crbug.com/v8/7142
-    // eslint-disable-next-line no-self-assign
-    extraError.stack = extraError.stack;
+    const originalExtraErrorStack = extraError.stack;
+    extraError.stack = originalExtraErrorStack;
 
     // We make *all* functions async and run `done` right away if they
     // didn't return a promise.
     const asyncJestLifecycle = function (done: DoneFn) {
       const wrappedFn = isGeneratorFn(fn) ? co.wrap(fn) : fn;
-      // @ts-expect-error: TS thinks `wrappedFn` is a generator function
       const returnValue = wrappedFn.call({}, doneFnNoop);
 
       if (isPromise(returnValue)) {
@@ -85,6 +85,9 @@ function promisifyLifeCycleFunction(
 
           if (message) {
             extraError.message = message;
+            extraError.stack =
+              originalExtraErrorStack &&
+              originalExtraErrorStack.replace('Error: ', `Error: ${message}`);
           }
           done.fail(checkIsError ? error : extraError);
         });
@@ -140,14 +143,15 @@ function promisifyIt(
       return originalFn.call(env, specName, asyncJestTestWithCallback, timeout);
     }
 
+    // eslint-disable-next-line unicorn/error-message
     const extraError = new Error();
 
     // Without this line v8 stores references to all closures
     // in the stack in the Error object. This line stringifies the stack
     // property to allow garbage-collecting objects on the stack
     // https://crbug.com/v8/7142
-    // eslint-disable-next-line no-self-assign
-    extraError.stack = extraError.stack;
+    const originalExtraErrorStack = extraError.stack;
+    extraError.stack = originalExtraErrorStack;
 
     const asyncJestTest = function (done: DoneFn) {
       const wrappedFn = isGeneratorFn(fn) ? co.wrap(fn) : fn;
@@ -159,6 +163,9 @@ function promisifyIt(
 
           if (message) {
             extraError.message = message;
+            extraError.stack =
+              originalExtraErrorStack &&
+              originalExtraErrorStack.replace('Error: ', `Error: ${message}`);
           }
 
           if (jasmine.Spec.isPendingSpecException(error)) {
@@ -225,6 +232,7 @@ function makeConcurrent(
     return spec;
   };
 
+  // eslint-disable-next-line unicorn/consistent-function-scoping
   const failing = () => {
     throw new Error(
       'Jest: `failing` tests are only supported in `jest-circus`.',
@@ -237,7 +245,7 @@ function makeConcurrent(
     );
   };
   // each is bound after the function is made concurrent, so for now it is made noop
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  // eslint-disable-next-line @typescript-eslint/no-empty-function,unicorn/consistent-function-scoping
   concurrentFn.each = () => () => {};
   concurrentFn.failing = failing;
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,7 +8,7 @@
 import {makeGlobalConfig} from '@jest/test-utils';
 import getResultHeader from '../getResultHeader';
 
-const endTime = 1577717671160;
+const endTime = 1_577_717_671_160;
 const testTime = 5500;
 
 const testResult = {

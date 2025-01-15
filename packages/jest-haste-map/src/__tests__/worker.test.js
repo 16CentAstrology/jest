@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -138,8 +138,8 @@ describe('worker', () => {
 
     try {
       await worker({computeDependencies: true, filePath: '/kiwi.js', rootDir});
-    } catch (err) {
-      error = err;
+    } catch (thrownError) {
+      error = thrownError;
     }
 
     expect(error.message).toBe("Cannot read path '/kiwi.js'.");

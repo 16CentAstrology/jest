@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -30,10 +30,10 @@ function stringToBytes(
   }
 
   if (typeof input === 'string') {
-    if (isNaN(Number.parseFloat(input.slice(-1)))) {
+    if (Number.isNaN(Number.parseFloat(input.slice(-1)))) {
       // eslint-disable-next-line prefer-const
       let [, numericString, trailingChars] =
-        input.match(/(.*?)([^0-9.-]+)$/i) || [];
+        input.match(/(.*?)([^\d.-]+)$/i) || [];
 
       if (trailingChars && numericString) {
         const numericValue = Number.parseFloat(numericString);

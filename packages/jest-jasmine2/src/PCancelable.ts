@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -46,6 +46,7 @@ export default class PCancelable<T> implements PromiseLike<T> {
     });
   }
 
+  // eslint-disable-next-line unicorn/no-thenable
   then<TResult1 = T, TResult2 = never>(
     onFulfilled?:
       | ((value: T) => TResult1 | PromiseLike<TResult1>)
@@ -76,8 +77,8 @@ export default class PCancelable<T> implements PromiseLike<T> {
     if (typeof this._cancel === 'function') {
       try {
         this._cancel();
-      } catch (err) {
-        this._reject(err);
+      } catch (error) {
+        this._reject(error);
       }
     }
 

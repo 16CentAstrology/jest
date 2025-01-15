@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -70,7 +70,7 @@ const getSnapshotOfCopy = () => {
 
 describe('Snapshot', () => {
   const cleanup = () => {
-    [
+    for (const file of [
       snapshotFile,
       secondSnapshotFile,
       snapshotOfCopy,
@@ -78,11 +78,11 @@ describe('Snapshot', () => {
       snapshotEscapeFile,
       snapshotEscapeRegexFile,
       snapshotEscapeSubstitutionFile,
-    ].forEach(file => {
+    ]) {
       if (fileExists(file)) {
         fs.unlinkSync(file);
       }
-    });
+    }
     if (fileExists(snapshotDir)) {
       fs.rmdirSync(snapshotDir);
     }

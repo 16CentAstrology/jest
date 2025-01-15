@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -485,14 +485,14 @@ describe('FakeTimers', () => {
       const mockAnimationFrame = jest.fn(() => runOrder.push('animationFrame'));
 
       global.setTimeout(mock1, 100);
-      global.setTimeout(mock2, NaN);
+      global.setTimeout(mock2, Number.NaN);
       global.setTimeout(mock3, 0);
       const intervalHandler = global.setInterval(() => {
         mock4();
         global.clearInterval(intervalHandler);
       }, 200);
-      global.setTimeout(mock5, Infinity);
-      global.setTimeout(mock6, -Infinity);
+      global.setTimeout(mock5, Number.POSITIVE_INFINITY);
+      global.setTimeout(mock6, Number.NEGATIVE_INFINITY);
       global.requestAnimationFrame(mockAnimationFrame);
 
       timers.runAllTimers();

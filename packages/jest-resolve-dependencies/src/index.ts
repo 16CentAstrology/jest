@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,7 +8,7 @@
 import * as path from 'path';
 import type {IHasteFS} from 'jest-haste-map';
 import type {ResolveModuleConfig, default as Resolver} from 'jest-resolve';
-import {SnapshotResolver, isSnapshotPath} from 'jest-snapshot';
+import {type SnapshotResolver, isSnapshotPath} from 'jest-snapshot';
 
 export type ResolvedModule = {
   file: string;
@@ -101,7 +101,7 @@ export class DependencyResolver {
     filter: (file: string) => boolean,
     options?: ResolveModuleConfig,
   ): Array<ResolvedModule> {
-    if (!paths.size) {
+    if (paths.size === 0) {
       return [];
     }
 
@@ -112,7 +112,7 @@ export class DependencyResolver {
     ) => {
       const visitedModules = new Set();
       const result: Array<ResolvedModule> = [];
-      while (changed.size) {
+      while (changed.size > 0) {
         changed = new Set(
           moduleMap.reduce<Array<string>>((acc, module) => {
             if (
@@ -133,13 +133,14 @@ export class DependencyResolver {
           }, []),
         );
       }
-      return result.concat(
-        Array.from(related).map(file => ({dependencies: [], file})),
-      );
+      return [
+        ...result,
+        ...[...related].map(file => ({dependencies: [], file})),
+      ];
     };
 
     const relatedPaths = new Set<string>();
-    const changed: Set<string> = new Set();
+    const changed = new Set<string>();
     for (const path of paths) {
       if (this._hasteFS.exists(path)) {
         const modulePath = isSnapshotPath(path)

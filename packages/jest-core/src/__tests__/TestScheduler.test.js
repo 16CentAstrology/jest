@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -347,8 +347,8 @@ describe('scheduleTests should always dispatch runStart and runComplete events',
           throw new Error('should throw exception');
         }
         expect(result.runExecError).toBeUndefined();
-      } catch (e) {
-        expect(e).toEqual(errorMsg);
+      } catch (error) {
+        expect(error).toEqual(errorMsg);
       }
 
       expect(mockReporter.onRunStart).toHaveBeenCalledTimes(1);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -11,22 +11,41 @@ import {transformFileAsync} from '@babel/core';
 import {
   CHILD_MESSAGE_CALL,
   WorkerEvents,
-  WorkerOptions,
+  type WorkerOptions,
   WorkerStates,
 } from '../../types';
 import ChildProcessWorker, {SIGKILL_DELAY} from '../ChildProcessWorker';
 import ThreadsWorker from '../NodeThreadsWorker';
 
-jest.setTimeout(10000);
+jest.setTimeout(10_000);
 
 const root = join('../../');
-const filesToBuild = ['workers/processChild', 'workers/threadChild', 'types'];
+const filesToBuild = [
+  'workers/processChild',
+  'workers/threadChild',
+  'workers/safeMessageTransferring',
+  'workers/isDataCloneError',
+  'types',
+];
 const writeDestination = join(__dirname, '__temp__');
 const processChildWorkerPath = join(
   writeDestination,
   'workers/processChild.js',
 );
 const threadChildWorkerPath = join(writeDestination, 'workers/threadChild.js');
+
+// https://github.com/nodejs/node/issues/51766
+if (
+  process.platform === 'win32' &&
+  (process.version.startsWith('v21.') ||
+    process.version.startsWith('v22.') ||
+    process.version.startsWith('v23.'))
+) {
+  // eslint-disable-next-line jest/no-focused-tests
+  test.only('skipping test on broken platform', () => {
+    console.warn('Skipping test on broken platform');
+  });
+}
 
 beforeAll(async () => {
   await mkdir(writeDestination, {recursive: true});
@@ -39,9 +58,7 @@ beforeAll(async () => {
 
     const result = await transformFileAsync(sourcePath);
 
-    await writeFile(writePath, result!.code!, {
-      encoding: 'utf-8',
-    });
+    await writeFile(writePath, result!.code!, 'utf8');
   }
 });
 
@@ -52,7 +69,7 @@ afterAll(async () => {
 test.each(filesToBuild)('%s.js should exist', file => {
   const path = join(writeDestination, `${file}.js`);
 
-  expect(async () => await access(path)).not.toThrow();
+  expect(async () => access(path)).not.toThrow();
 });
 
 async function closeWorkerAfter(
@@ -99,7 +116,7 @@ describe.each([
           clearInterval(int);
         }
 
-        if (count > 100000) {
+        if (count > 100_000) {
           reject(new Error('Timeout waiting for change'));
         }
 
@@ -310,9 +327,9 @@ describe.each([
     });
 
     test('worker stays dead', async () => {
-      await expect(
-        async () => await worker.waitForWorkerReady(),
-      ).rejects.toThrow('Worker state means it will never be ready: shut-down');
+      await expect(async () => worker.waitForWorkerReady()).rejects.toThrow(
+        'Worker state means it will never be ready: shut-down',
+      );
       expect(worker.isWorkerRunning()).toBeFalsy();
     });
 
@@ -413,7 +430,7 @@ describe.each([
       });
     });
 
-    // Regression test for https://github.com/facebook/jest/issues/13183
+    // Regression test for https://github.com/jestjs/jest/issues/13183
     test('onEnd callback is called', async () => {
       let onEndPromiseResolve: () => void;
       let onEndPromiseReject: (err: Error) => void;

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -22,7 +22,7 @@ describe('getSummary', () => {
   test('does print seed value when showSeed is true', () => {
     const summary = getSummary(makeEmptyAggregatedTestResult(), {
       estimatedTime: 0,
-      seed: 55555,
+      seed: 55_555,
       showSeed: true,
     });
 

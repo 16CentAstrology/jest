@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -17,7 +17,7 @@ test('run prioritySequence', () => {
 
   expect(result.exitCode).toBe(0);
   const sequence = extractSummary(result.stderr)
-    .rest.replace(/PASS /g, '')
+    .rest.replaceAll('PASS ', '')
     .split('\n');
   expect(sequence).toEqual([
     './a.test.js',

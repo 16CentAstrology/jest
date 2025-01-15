@@ -1,12 +1,12 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  */
 
-/* eslint-disable no-duplicate-imports */
+/* eslint-disable no-duplicate-imports, import/no-duplicates */
 import {jest} from '@jest/globals';
 import {jest as aliasedJest} from '@jest/globals';
 import * as JestGlobals from '@jest/globals';

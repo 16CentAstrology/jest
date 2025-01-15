@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -33,7 +33,7 @@ jest.mock('fb-watchman', () => {
   return {Client};
 });
 
-const forcePOSIXPaths = path => path.replace(/\\/g, '/');
+const forcePOSIXPaths = path => path.replaceAll('\\', '/');
 const pearMatcher = path => /pear/.test(path);
 
 let watchman;

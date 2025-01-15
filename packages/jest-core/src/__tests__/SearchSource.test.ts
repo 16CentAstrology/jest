@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,13 +7,15 @@
  */
 
 import * as path from 'path';
+import {TestPathPatterns} from '@jest/pattern';
 import type {Test} from '@jest/test-result';
 import type {Config} from '@jest/types';
 import {normalize} from 'jest-config';
 import Runtime from 'jest-runtime';
 import SearchSource from '../SearchSource';
+import type {Filter} from '../types';
 
-jest.setTimeout(15000);
+jest.setTimeout(15_000);
 
 jest.mock('graceful-fs', () => {
   const realFs = jest.requireActual<typeof import('fs')>('fs');
@@ -105,12 +107,22 @@ describe('SearchSource', () => {
   });
 
   describe('getTestPaths', () => {
-    const getTestPaths = async (initialOptions: Config.InitialOptions) => {
+    const getTestPaths = async (
+      initialOptions: Config.InitialOptions,
+      filter?: Filter,
+    ) => {
       const {searchSource, config} = await initSearchSource(initialOptions);
-      const {tests: paths} = await searchSource.getTestPaths({
+      const allConfig = {
         ...config,
-        testPathPattern: '',
-      });
+        ...initialOptions,
+        testPathPatterns: new TestPathPatterns([]),
+      };
+      const {tests: paths} = await searchSource.getTestPaths(
+        allConfig,
+        allConfig,
+        null,
+        filter,
+      );
       return paths.map(({path: p}) => path.relative(rootDir, p)).sort();
     };
 
@@ -291,6 +303,23 @@ describe('SearchSource', () => {
         path.normalize('__testtests__/test.jsx'),
       ]);
     });
+
+    it('filter tests based on an optional filter method', async () => {
+      const filterFunction = (testPaths: Array<string>) =>
+        Promise.resolve({
+          filtered: testPaths.filter(testPath => testPath.includes('test.jsx')),
+        });
+      const paths = await getTestPaths(
+        {
+          id,
+          rootDir,
+        },
+        filterFunction,
+      );
+
+      expect(paths).toHaveLength(1);
+      expect(paths[0]).toStrictEqual(path.normalize('__testtests__/test.jsx'));
+    });
   });
 
   describe('filterPathsWin32', () => {
@@ -426,7 +455,7 @@ describe('SearchSource', () => {
         new Set([regular, requireRegular, unrelatedFile]),
         true,
       );
-      expect(Array.from(data.collectCoverageFrom || [])).toEqual([
+      expect([...(data.collectCoverageFrom || [])]).toEqual([
         'RegularModule.js',
       ]);
     });

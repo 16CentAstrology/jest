@@ -1,19 +1,20 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
  */
 
+import {runInContext} from 'node:vm';
 import chalk = require('chalk');
 import * as fs from 'graceful-fs';
 import sourcemapSupport = require('source-map-support');
 import {
   BufferedConsole,
   CustomConsole,
-  LogMessage,
-  LogType,
+  type LogMessage,
+  type LogType,
   NullConsole,
   getConsoleOutput,
 } from '@jest/console';
@@ -24,6 +25,7 @@ import type {Config} from '@jest/types';
 import * as docblock from 'jest-docblock';
 import LeakDetector from 'jest-leak-detector';
 import {formatExecError} from 'jest-message-util';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import Resolver, {resolveTestEnvironment} from 'jest-resolve';
 import type RuntimeClass from 'jest-runtime';
 import {ErrorWithStack, interopRequireDefault, setGlobal} from 'jest-util';
@@ -86,11 +88,12 @@ async function runTestInternal(
   const docblockPragmas = docblock.parse(docblock.extract(testSource));
   const customEnvironment = docblockPragmas['jest-environment'];
 
+  const loadTestEnvironmentStart = Date.now();
   let testEnvironment = projectConfig.testEnvironment;
 
   if (customEnvironment) {
     if (Array.isArray(customEnvironment)) {
-      throw new Error(
+      throw new TypeError(
         `You can only define a single test environment through docblocks, got "${customEnvironment.join(
           ', ',
         )}"`,
@@ -98,7 +101,8 @@ async function runTestInternal(
     }
     testEnvironment = resolveTestEnvironment({
       ...projectConfig,
-      requireResolveFunction: require.resolve,
+      // we wanna avoid webpack trying to be clever
+      requireResolveFunction: module => require.resolve(module),
       testEnvironment: customEnvironment,
     });
   }
@@ -167,6 +171,7 @@ async function runTestInternal(
       testPath: path,
     },
   );
+  const loadTestEnvironmentEnd = Date.now();
 
   if (typeof environment.getVmContext !== 'function') {
     console.error(
@@ -204,6 +209,14 @@ async function runTestInternal(
   const tearDownEnv = async () => {
     if (!isTornDown) {
       runtime.teardown();
+
+      // source-map-support keeps memory leftovers in `Error.prepareStackTrace`
+      runInContext(
+        "Error.prepareStackTrace = () => '';",
+        environment.getVmContext()!,
+      );
+      sourcemapSupport.resetRetrieveHandlers();
+
       await environment.teardown();
       isTornDown = true;
     }
@@ -211,6 +224,7 @@ async function runTestInternal(
 
   const start = Date.now();
 
+  const setupFilesStart = Date.now();
   for (const path of projectConfig.setupFiles) {
     const esm = runtime.unstable_shouldLoadAsEsm(path);
 
@@ -223,6 +237,7 @@ async function runTestInternal(
       }
     }
   }
+  const setupFilesEnd = Date.now();
 
   const sourcemapOptions: sourcemapSupport.Options = {
     environment: 'node',
@@ -244,9 +259,9 @@ async function runTestInternal(
 
   // For tests
   runtime
-    .requireInternalModule<typeof import('source-map-support')>(
-      require.resolve('source-map-support'),
-    )
+    .requireInternalModule<
+      typeof import('source-map-support')
+    >(require.resolve('source-map-support'))
     .install(sourcemapOptions);
 
   // For runtime errors
@@ -305,11 +320,15 @@ async function runTestInternal(
         path,
         sendMessageToJest,
       );
-    } catch (err: any) {
-      // Access stack before uninstalling sourcemaps
-      err.stack;
+    } catch (error: any) {
+      // Access all stacks before uninstalling sourcemaps
+      let e = error;
+      while (typeof e === 'object' && e !== null && 'stack' in e) {
+        e.stack;
+        e = e?.cause;
+      }
 
-      throw err;
+      throw error;
     } finally {
       if (collectV8Coverage) {
         await runtime.stopCollectingV8Coverage();
@@ -327,8 +346,13 @@ async function runTestInternal(
     const end = Date.now();
     const testRuntime = end - start;
     result.perfStats = {
+      ...result.perfStats,
       end,
+      loadTestEnvironmentEnd,
+      loadTestEnvironmentStart,
       runtime: testRuntime,
+      setupFilesEnd,
+      setupFilesStart,
       slow: testRuntime / 1000 > projectConfig.slowTestThreshold,
       start,
     };
@@ -340,7 +364,7 @@ async function runTestInternal(
     const coverage = runtime.getAllCoverageInfoCopy();
     if (coverage) {
       const coverageKeys = Object.keys(coverage);
-      if (coverageKeys.length) {
+      if (coverageKeys.length > 0) {
         result.coverage = coverage;
       }
     }
@@ -353,7 +377,6 @@ async function runTestInternal(
     }
 
     if (globalConfig.logHeapUsage) {
-      // @ts-expect-error - doesn't exist on globalThis
       globalThis.gc?.();
 
       result.memoryUsage = process.memoryUsage().heapUsed;
@@ -367,8 +390,6 @@ async function runTestInternal(
     });
   } finally {
     await tearDownEnv();
-
-    sourcemapSupport.resetRetrieveHandlers();
   }
 }
 

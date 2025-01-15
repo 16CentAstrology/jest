@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,13 +7,16 @@
 
 import {
   CHILD_MESSAGE_END,
-  WorkerInterface,
-  WorkerOptions,
-  WorkerPoolOptions,
+  type WorkerInterface,
+  type WorkerOptions,
+  type WorkerPoolOptions,
 } from '../../types';
 import BaseWorkerPool from '../BaseWorkerPool';
 
-const Worker = jest.fn<(workerOptions: WorkerOptions) => WorkerInterface>();
+const Worker =
+  jest.fn<
+    (workerOptions: Omit<WorkerOptions, 'resourceLimits'>) => WorkerInterface
+  >();
 
 const mockSend = jest.fn();
 
@@ -34,12 +37,12 @@ describe('BaseWorkerPool', () => {
         ({
           forceExit: jest.fn(),
           getStderr: () =>
-            ({once() {}, pipe() {}} as unknown as NodeJS.ReadStream),
+            ({once() {}, pipe() {}}) as unknown as NodeJS.ReadStream,
           getStdout: () =>
-            ({once() {}, pipe() {}} as unknown as NodeJS.ReadStream),
+            ({once() {}, pipe() {}}) as unknown as NodeJS.ReadStream,
           send: jest.fn(),
           waitForExit: () => Promise.resolve(),
-        } as unknown as WorkerInterface),
+        }) as unknown as WorkerInterface,
     );
   });
 
@@ -138,15 +141,15 @@ describe('BaseWorkerPool', () => {
               pipe(errStream: NodeJS.WritableStream) {
                 err.push(errStream);
               },
-            } as unknown as NodeJS.ReadableStream),
+            }) as unknown as NodeJS.ReadableStream,
           getStdout: () =>
             ({
               once() {},
               pipe(outStream: NodeJS.WritableStream) {
                 out.push(outStream);
               },
-            } as unknown as NodeJS.ReadableStream),
-        } as WorkerInterface),
+            }) as unknown as NodeJS.ReadableStream,
+        }) as WorkerInterface,
     );
 
     const farm = new MockWorkerPool('/tmp/baz.js', {
@@ -181,7 +184,7 @@ describe('BaseWorkerPool', () => {
           getStderr: () => null,
           getStdout: () => null,
           send: () => null,
-        } as unknown as WorkerInterface),
+        }) as unknown as WorkerInterface,
     );
 
     const farm = new MockWorkerPool('/tmp/baz.js', {
@@ -225,7 +228,7 @@ describe('BaseWorkerPool', () => {
             getStdout: () => null,
             send: jest.fn(),
             waitForExit: () => Promise.resolve(),
-          } as unknown as WorkerInterface),
+          }) as unknown as WorkerInterface,
       );
 
       const pool = new MockWorkerPool('/tmp/baz.js', {
@@ -253,7 +256,7 @@ describe('BaseWorkerPool', () => {
             send: jest.fn(),
             waitForExit: () =>
               new Promise(resolve => (worker0Exited = resolve)),
-          } as unknown as WorkerInterface),
+          }) as unknown as WorkerInterface,
       ).mockImplementation(
         () =>
           ({
@@ -262,7 +265,7 @@ describe('BaseWorkerPool', () => {
             getStdout: () => null,
             send: jest.fn(),
             waitForExit: () => Promise.resolve(),
-          } as unknown as WorkerInterface),
+          }) as unknown as WorkerInterface,
       );
 
       const pool = new MockWorkerPool('/tmp/baz.js', {

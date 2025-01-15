@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -61,11 +61,35 @@ export interface Jest {
    */
   advanceTimersByTime(msToRun: number): void;
   /**
+   * Advances all timers by `msToRun` milliseconds, firing callbacks if necessary.
+   *
+   * @remarks
+   * Not available when using legacy fake timers implementation.
+   */
+  advanceTimersByTimeAsync(msToRun: number): Promise<void>;
+  /**
+   * Advances all timers by the needed milliseconds to execute callbacks currently scheduled with `requestAnimationFrame`.
+   * `advanceTimersToNextFrame()` is a helpful way to execute code that is scheduled using `requestAnimationFrame`.
+   *
+   * @remarks
+   * Not available when using legacy fake timers implementation.
+   */
+  advanceTimersToNextFrame(): void;
+  /**
    * Advances all timers by the needed milliseconds so that only the next
    * timeouts/intervals will run. Optionally, you can provide steps, so it will
    * run steps amount of next timeouts/intervals.
    */
   advanceTimersToNextTimer(steps?: number): void;
+  /**
+   * Advances the clock to the the moment of the first scheduled timer, firing it.
+   * Optionally, you can provide steps, so it will run steps amount of
+   * next timeouts/intervals.
+   *
+   * @remarks
+   * Not available when using legacy fake timers implementation.
+   */
+  advanceTimersToNextTimerAsync(steps?: number): Promise<void>;
   /**
    * Disables automatic mocking in the module loader.
    */
@@ -129,17 +153,6 @@ export interface Jest {
    * Creates a mock function. Optionally takes a mock implementation.
    */
   fn: ModuleMocker['fn'];
-  // TODO remove `genMockFromModule()` in Jest 30
-  /**
-   * Given the name of a module, use the automatic mocking system to generate a
-   * mocked version of the module for you.
-   *
-   * This is useful when you want to create a manual mock that extends the
-   * automatic mock's behavior.
-   *
-   * @deprecated Use `jest.createMockFromModule()` instead
-   */
-  genMockFromModule<T = unknown>(moduleName: string): Mocked<T>;
   /**
    * When mocking time, `Date.now()` will also be mocked. If you for some reason
    * need access to the real current time, you can invoke this function.
@@ -158,9 +171,17 @@ export interface Jest {
    */
   getTimerCount(): number;
   /**
-   * Returns the current time in ms of the fake timer clock.
+   * Returns `true` if test environment has been torn down.
+   *
+   * @example
+   * ```js
+   * if (jest.isEnvironmentTornDown()) {
+   *   // The Jest environment has been torn down, so stop doing work
+   *   return;
+   * }
+   * ```
    */
-  now(): number;
+  isEnvironmentTornDown(): boolean;
   /**
    * Determines if the given function is a mocked function.
    */
@@ -172,6 +193,12 @@ export interface Jest {
    * local module state doesn't conflict between tests.
    */
   isolateModules(fn: () => void): Jest;
+  /**
+   * `jest.isolateModulesAsync()` is the equivalent of `jest.isolateModules()`, but for
+   * async functions to be wrapped. The caller is expected to `await` the completion of
+   * `isolateModulesAsync`.
+   */
+  isolateModulesAsync(fn: () => Promise<void>): Promise<void>;
   /**
    * Mocks a module with an auto-mocked version when it is being required.
    */
@@ -188,6 +215,33 @@ export interface Jest {
     moduleFactory: () => T | Promise<T>,
     options?: {virtual?: boolean},
   ): Jest;
+  /**
+   * Wraps types of the `source` object and its deep members with type definitions
+   * of Jest mock function. Pass `{shallow: true}` option to disable the deeply
+   * mocked behavior.
+   */
+  mocked: ModuleMocker['mocked'];
+  /**
+   * Returns the current time in ms of the fake timer clock.
+   */
+  now(): number;
+  /**
+   * Registers a callback function that is invoked whenever a mock is generated for a module.
+   * This callback is passed the module name and the newly created mock object, and must return
+   * the (potentially modified) mock object.
+   *
+   * If multiple callbacks are registered, they will be called in the order they were added.
+   * Each callback receives the result of the previous callback as the `moduleMock` parameter,
+   * making it possible to apply sequential transformations.
+   */
+  onGenerateMock<T>(cb: (moduleName: string, moduleMock: T) => T): Jest;
+  /**
+   * Replaces property on an object with another value.
+   *
+   * @remarks
+   * For mocking functions or 'get' or 'set' accessors, use `jest.spyOn()` instead.
+   */
+  replaceProperty: ModuleMocker['replaceProperty'];
   /**
    * Returns the actual module instead of a mock, bypassing all checks on
    * whether the module should receive a mock implementation or not.
@@ -212,12 +266,6 @@ export interface Jest {
    */
   requireActual<T = unknown>(moduleName: string): T;
   /**
-   * Wraps types of the `source` object and its deep members with type definitions
-   * of Jest mock function. Pass `{shallow: true}` option to disable the deeply
-   * mocked behavior.
-   */
-  mocked: ModuleMocker['mocked'];
-  /**
    * Returns a mock module instead of the actual module, bypassing all checks
    * on whether the module should be required normally or not.
    */
@@ -233,8 +281,9 @@ export interface Jest {
    */
   resetModules(): Jest;
   /**
-   * Restores all mocks back to their original value. Equivalent to calling
-   * `.mockRestore()` on every mocked function.
+   * Restores all mocks and replaced properties back to their original value.
+   * Equivalent to calling `.mockRestore()` on every mocked function
+   * and `.restore()` on every replaced property.
    *
    * Beware that `jest.restoreAllMocks()` only works when the mock was created
    * with `jest.spyOn()`; other mocks will require you to manually restore them.
@@ -248,14 +297,22 @@ export interface Jest {
    * the test to fail to the console, providing visibility on why a retry occurred.
    * retries is exhausted.
    *
+   * `waitBeforeRetry` is the number of milliseconds to wait before retrying
+   *
+   * `retryImmediately` is the flag to retry the failed test immediately after
+   *  failure
+   *
    * @remarks
    * Only available with `jest-circus` runner.
    */
   retryTimes(
     numRetries: number,
-    options?: {logErrorsBeforeRetry?: boolean},
+    options?: {
+      logErrorsBeforeRetry?: boolean;
+      retryImmediately?: boolean;
+      waitBeforeRetry?: number;
+    },
   ): Jest;
-
   /**
    * Exhausts tasks queued by `setImmediate()`.
    *
@@ -274,12 +331,32 @@ export interface Jest {
    */
   runAllTimers(): void;
   /**
+   * Exhausts the macro-task queue (i.e., all tasks queued by `setTimeout()`
+   * and `setInterval()`).
+   *
+   * @remarks
+   * If new timers are added while it is executing they will be run as well.
+   * @remarks
+   * Not available when using legacy fake timers implementation.
+   */
+  runAllTimersAsync(): Promise<void>;
+  /**
    * Executes only the macro-tasks that are currently pending (i.e., only the
    * tasks that have been queued by `setTimeout()` or `setInterval()` up to this
    * point). If any of the currently pending macro-tasks schedule new
    * macro-tasks, those new tasks will not be executed by this call.
    */
   runOnlyPendingTimers(): void;
+  /**
+   * Executes only the macro-tasks that are currently pending (i.e., only the
+   * tasks that have been queued by `setTimeout()` or `setInterval()` up to this
+   * point). If any of the currently pending macro-tasks schedule new
+   * macro-tasks, those new tasks will not be executed by this call.
+   *
+   * @remarks
+   * Not available when using legacy fake timers implementation.
+   */
+  runOnlyPendingTimersAsync(): Promise<void>;
   /**
    * Explicitly supplies the mock object that the module system should return
    * for the specified module.
@@ -325,6 +402,12 @@ export interface Jest {
    * real module).
    */
   unmock(moduleName: string): Jest;
+  /**
+   * Indicates that the module system should never return a mocked version of
+   * the specified module when it is being imported (e.g. that it should always
+   * return the real module).
+   */
+  unstable_unmockModule(moduleName: string): Jest;
   /**
    * Instructs Jest to use fake versions of the global date, performance,
    * time and timer APIs. Fake timers implementation is backed by

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,12 +7,13 @@
  */
 
 import * as path from 'path';
+import {fileURLToPath, pathToFileURL} from 'url';
 import * as fs from 'graceful-fs';
 import {sync as resolveSync} from 'resolve';
-import {IModuleMap, ModuleMap} from 'jest-haste-map';
+import {type IModuleMap, ModuleMap} from 'jest-haste-map';
 import userResolver from '../__mocks__/userResolver';
 import userResolverAsync from '../__mocks__/userResolverAsync';
-import defaultResolver, {PackageFilter} from '../defaultResolver';
+import defaultResolver, {type PackageFilter} from '../defaultResolver';
 import nodeModulesPaths from '../nodeModulesPaths';
 import Resolver from '../resolver';
 import type {ResolverConfig} from '../types';
@@ -91,11 +92,11 @@ describe('isCoreModule', () => {
     expect(isCore).toBe(true);
   });
 
-  it('returns false if using `node:` URLs and `moduleName` is not a core module.', () => {
+  it('returns true if using `node:` URLs and `moduleName` is not a core module.', () => {
     const moduleMap = ModuleMap.create('/');
     const resolver = new Resolver(moduleMap, {} as ResolverConfig);
     const isCore = resolver.isCoreModule('node:not-a-core-module');
-    expect(isCore).toBe(false);
+    expect(isCore).toBe(true);
   });
 });
 
@@ -128,7 +129,7 @@ describe('findNodeModule', () => {
       defaultResolver,
       extensions: ['js'],
       moduleDirectory: ['node_modules'],
-      paths: (nodePaths || []).concat(['/something']),
+      paths: [...(nodePaths || []), '/something'],
       rootDir: undefined,
     });
   });
@@ -150,6 +151,15 @@ describe('findNodeModule', () => {
       expect.objectContaining({name: '__mocks__'}),
       expect.any(String),
     );
+  });
+
+  it('supports file URLs', () => {
+    const path = pathToFileURL(__filename).href;
+    const newPath = Resolver.findNodeModule(path, {
+      basedir: '/',
+    });
+
+    expect(newPath).toBe(__filename);
   });
 
   describe('conditions', () => {
@@ -316,6 +326,90 @@ describe('findNodeModule', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('imports', () => {
+    const importsRoot = path.resolve(__dirname, '../__mocks__/imports');
+
+    test('supports internal reference', () => {
+      const result = Resolver.findNodeModule('#nested', {
+        basedir: path.resolve(importsRoot, './foo-import/index.cjs'),
+        conditions: ['require'],
+      });
+
+      expect(result).toEqual(
+        path.resolve(importsRoot, './foo-import/internal.cjs'),
+      );
+    });
+
+    test('supports external reference', () => {
+      const result = Resolver.findNodeModule('#nested', {
+        basedir: path.resolve(importsRoot, './foo-import/index.js'),
+        conditions: [],
+      });
+
+      expect(result).toEqual(
+        path.resolve(
+          importsRoot,
+          './foo-import/node_modules/external-foo/main.js',
+        ),
+      );
+    });
+
+    test('supports nested pattern', () => {
+      const result = Resolver.findNodeModule('#nested', {
+        basedir: path.resolve(importsRoot, './nested-import/index.cjs'),
+        conditions: ['node', 'require'],
+      });
+
+      expect(result).toEqual(
+        path.resolve(importsRoot, './nested-import/node.cjs'),
+      );
+    });
+
+    describe('supports array pattern', () => {
+      test('resolve to first found', () => {
+        const result = Resolver.findNodeModule('#array-import', {
+          basedir: path.resolve(importsRoot, './array-import/index.cjs'),
+          conditions: ['import'],
+        });
+
+        expect(result).toEqual(
+          path.resolve(importsRoot, './array-import/node.mjs'),
+        );
+      });
+
+      test('skip over not met nested condition', () => {
+        const result = Resolver.findNodeModule('#array-import', {
+          basedir: path.resolve(importsRoot, './array-import/index.cjs'),
+          conditions: ['browser'],
+        });
+
+        expect(result).toEqual(
+          path.resolve(importsRoot, './array-import/browser.cjs'),
+        );
+      });
+
+      test('match nested condition', () => {
+        const result = Resolver.findNodeModule('#array-import', {
+          basedir: path.resolve(importsRoot, './array-import/index.cjs'),
+          conditions: ['chrome', 'browser'],
+        });
+
+        expect(result).toEqual(
+          path.resolve(importsRoot, './array-import/chrome.cjs'),
+        );
+      });
+    });
+
+    test('fails for non-existent mapping', () => {
+      expect(() => {
+        Resolver.findNodeModule('#something-else', {
+          basedir: path.resolve(importsRoot, './foo-import/index.js'),
+          conditions: [],
+        });
+      }).toThrow('Missing "#something-else" specifier in "foo-import" package');
+    });
+  });
 });
 
 describe('findNodeModuleAsync', () => {
@@ -347,7 +441,7 @@ describe('findNodeModuleAsync', () => {
       defaultResolver,
       extensions: ['js'],
       moduleDirectory: ['node_modules'],
-      paths: (nodePaths || []).concat(['/something']),
+      paths: [...(nodePaths || []), '/something'],
       rootDir: undefined,
     });
   });
@@ -371,6 +465,15 @@ describe('findNodeModuleAsync', () => {
         packageFilter,
       }),
     );
+  });
+
+  it('supports file URLs', async () => {
+    const path = pathToFileURL(__filename).href;
+    const newPath = await Resolver.findNodeModuleAsync(path, {
+      basedir: '/',
+    });
+
+    expect(newPath).toBe(__filename);
   });
 });
 
@@ -476,6 +579,25 @@ describe('resolveModule', () => {
 
     expect(mockUserResolver).toHaveBeenCalled();
     expect(mockUserResolver.mock.calls[0][0]).toBe('fs');
+  });
+
+  it('handles unmatched capture groups correctly', () => {
+    const resolver = new Resolver(moduleMap, {
+      extensions: ['.js'],
+      moduleNameMapper: [
+        {
+          moduleName: './__mocks__/foo$1',
+          regex: /^@Foo(\/.*)?$/,
+        },
+      ],
+    } as ResolverConfig);
+    const src = require.resolve('../');
+    expect(resolver.resolveModule(src, '@Foo')).toBe(
+      require.resolve('../__mocks__/foo.js'),
+    );
+    expect(resolver.resolveModule(src, '@Foo/bar')).toBe(
+      require.resolve('../__mocks__/foo/bar/index.js'),
+    );
   });
 });
 
@@ -637,7 +759,19 @@ describe('nodeModulesPaths', () => {
   it('provides custom module paths after node_modules', () => {
     const src = require.resolve('../');
     const result = nodeModulesPaths(src, {paths: ['./customFolder']});
-    expect(result[result.length - 1]).toBe('./customFolder');
+    expect(result.at(-1)).toBe('./customFolder');
+  });
+
+  it('provides custom module multy paths after node_modules', () => {
+    const src = require.resolve('../');
+    const result = nodeModulesPaths(src, {
+      paths: ['./customFolder', './customFolder2', './customFolder3'],
+    });
+    expect(result.slice(-3)).toStrictEqual([
+      './customFolder',
+      './customFolder2',
+      './customFolder3',
+    ]);
   });
 });
 
@@ -719,9 +853,8 @@ describe('Resolver.getGlobalPaths()', () => {
     jest.doMock('path', () => _path.posix);
     const resolver = new Resolver(moduleMap, {} as ResolverConfig);
     const globalPaths = resolver.getGlobalPaths('jest');
-    globalPaths.forEach(globalPath =>
-      expect(require.resolve.paths('jest')).toContain(globalPath),
-    );
+    for (const globalPath of globalPaths)
+      expect(require.resolve.paths('jest')).toContain(globalPath);
   });
 
   it('return empty array with builtin module', () => {
@@ -735,9 +868,8 @@ describe('Resolver.getGlobalPaths()', () => {
     jest.doMock('path', () => _path.posix);
     const resolver = new Resolver(moduleMap, {} as ResolverConfig);
     const globalPaths = resolver.getGlobalPaths('/');
-    globalPaths.forEach(globalPath =>
-      expect(require.resolve.paths('/')).toContain(globalPath),
-    );
+    for (const globalPath of globalPaths)
+      expect(require.resolve.paths('/')).toContain(globalPath);
   });
 
   it('return empty array with relative path', () => {

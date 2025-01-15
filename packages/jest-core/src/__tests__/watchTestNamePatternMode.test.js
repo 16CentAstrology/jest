@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,6 +7,7 @@
  */
 
 import chalk from 'chalk';
+import {TestPathPatterns} from '@jest/pattern';
 // eslint-disable-next-line import/order
 import {KEYS} from 'jest-watcher';
 
@@ -31,7 +32,7 @@ jest.doMock(
   '../runJest',
   () =>
     function () {
-      const args = Array.from(arguments);
+      const args = [...arguments];
       const [{onComplete}] = args;
       runJestMock.apply(null, args);
 
@@ -83,6 +84,8 @@ jest.doMock(
 const watch = require('../watch').default;
 
 const globalConfig = {
+  rootDir: '',
+  testPathPatterns: new TestPathPatterns([]),
   watch: true,
 };
 
@@ -116,11 +119,13 @@ describe('Watch mode flows', () => {
     };
 
     // Write a pattern
-    ['c', 'o', 'n', ' ', '1', '2'].forEach(assertPattern);
+    for (const pattern of ['c', 'o', 'n', ' ', '1', '2'])
+      assertPattern(pattern);
 
-    [KEYS.BACKSPACE, KEYS.BACKSPACE].forEach(assertPattern);
+    for (const pattern of [KEYS.BACKSPACE, KEYS.BACKSPACE])
+      assertPattern(pattern);
 
-    ['*'].forEach(assertPattern);
+    for (const pattern of ['*']) assertPattern(pattern);
 
     // Runs Jest again
     runJestMock.mockReset();
@@ -153,6 +158,6 @@ class MockStdin {
   }
 
   emit(key) {
-    this._callbacks.forEach(cb => cb(key));
+    for (const cb of this._callbacks) cb(key);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,6 +7,7 @@
  */
 
 import chalk from 'chalk';
+import {TestPathPatterns} from '@jest/pattern';
 // eslint-disable-next-line import/order
 import {KEYS} from 'jest-watcher';
 
@@ -55,7 +56,7 @@ jest.doMock(
   '../runJest',
   () =>
     function () {
-      const args = Array.from(arguments);
+      const args = [...arguments];
       const [{onComplete}] = args;
       runJestMock.apply(null, args);
 
@@ -68,9 +69,13 @@ jest.doMock(
 
 const watch = require('../watch').default;
 
-const nextTick = () => new Promise(res => process.nextTick(res));
+const nextTick = () => new Promise(resolve => process.nextTick(resolve));
 
-const globalConfig = {watch: true};
+const globalConfig = {
+  rootDir: '',
+  testPathPatterns: new TestPathPatterns([]),
+  watch: true,
+};
 
 afterEach(runJestMock.mockReset);
 
@@ -102,11 +107,12 @@ describe('Watch mode flows', () => {
     };
 
     // Write a pattern
-    ['p', '.', '*', '1', '0'].forEach(assertPattern);
+    for (const pattern of ['p', '.', '*', '1', '0']) assertPattern(pattern);
 
-    [KEYS.BACKSPACE, KEYS.BACKSPACE].forEach(assertPattern);
+    for (const pattern of [KEYS.BACKSPACE, KEYS.BACKSPACE])
+      assertPattern(pattern);
 
-    ['3'].forEach(assertPattern);
+    for (const pattern of ['3']) assertPattern(pattern);
 
     // Runs Jest again
     runJestMock.mockReset();
@@ -124,15 +130,13 @@ describe('Watch mode flows', () => {
     stdin.emit('p');
     await nextTick();
 
-    ['p', '.', '*', '1', '0']
-
-      .concat(KEYS.ENTER)
-      .forEach(key => stdin.emit(key));
+    for (const key of ['p', '.', '*', '1', '0'].concat(KEYS.ENTER))
+      stdin.emit(key);
 
     stdin.emit('t');
     await nextTick();
 
-    ['t', 'e', 's', 't'].concat(KEYS.ENTER).forEach(key => stdin.emit(key));
+    for (const key of ['t', 'e', 's', 't'].concat(KEYS.ENTER)) stdin.emit(key);
 
     await nextTick();
 
@@ -163,6 +167,6 @@ class MockStdin {
   }
 
   emit(key) {
-    this._callbacks.forEach(cb => cb(key));
+    for (const cb of this._callbacks) cb(key);
   }
 }

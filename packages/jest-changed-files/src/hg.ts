@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -7,7 +7,6 @@
  */
 
 import * as path from 'path';
-import {types} from 'util';
 import execa = require('execa');
 import type {SCMAdapter} from './types';
 
@@ -30,19 +29,7 @@ const adapter: SCMAdapter = {
     }
     args.push(...includePaths);
 
-    let result: execa.ExecaReturnValue;
-
-    try {
-      result = await execa('hg', args, {cwd, env});
-    } catch (e) {
-      if (types.isNativeError(e)) {
-        const err = e as execa.ExecaError;
-        // TODO: Should we keep the original `message`?
-        err.message = err.stderr;
-      }
-
-      throw e;
-    }
+    const result = await execa('hg', args, {cwd, env});
 
     return result.stdout
       .split('\n')

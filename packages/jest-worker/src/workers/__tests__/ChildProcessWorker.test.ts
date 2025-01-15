@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -13,13 +13,13 @@ import {
   CHILD_MESSAGE_CALL,
   CHILD_MESSAGE_INITIALIZE,
   CHILD_MESSAGE_MEM_USAGE,
-  ChildMessage,
-  ChildMessageCall,
+  type ChildMessage,
+  type ChildMessageCall,
   PARENT_MESSAGE_CLIENT_ERROR,
   PARENT_MESSAGE_CUSTOM,
   PARENT_MESSAGE_MEM_USAGE,
   PARENT_MESSAGE_OK,
-  WorkerOptions,
+  type WorkerOptions,
 } from '../../types';
 
 jest.useFakeTimers();
@@ -159,8 +159,8 @@ it('provides stdout and stderr from the child processes', async () => {
     workerPath: '/tmp/foo',
   } as WorkerOptions);
 
-  const stdout = worker.getStdout() as NodeJS.ReadableStream;
-  const stderr = worker.getStderr() as NodeJS.ReadableStream;
+  const stdout = worker.getStdout()!;
+  const stderr = worker.getStderr()!;
 
   (forkInterface.stdout as PassThrough).end('Hello ', 'utf8');
   (forkInterface.stderr as PassThrough).end('Jest ', 'utf8');
@@ -363,7 +363,7 @@ it('creates error instances for known errors', () => {
   expect(callback3.mock.calls[0][0]).toBe(412);
 });
 
-it('throws when the child process returns a strange message', () => {
+it('does not throw when the child process returns a strange message', () => {
   const worker = new Worker({
     forkOptions: {},
     maxRetries: 3,
@@ -378,9 +378,14 @@ it('throws when the child process returns a strange message', () => {
   );
 
   // Type 27 does not exist.
-  expect(() => {
-    forkInterface.emit('message', [27]);
-  }).toThrow(TypeError);
+  forkInterface.emit('message', [27]);
+
+  forkInterface.emit('message', 'test');
+  forkInterface.emit('message', {foo: 'bar'});
+  forkInterface.emit('message', 0);
+  forkInterface.emit('message', null);
+  forkInterface.emit('message', Symbol('test'));
+  forkInterface.emit('message', true);
 });
 
 it('does not restart the child if it cleanly exited', () => {
@@ -522,7 +527,7 @@ it('should check for memory limits and not restart if under percentage limit', a
   const memoryConfig = {
     limit: 0.2,
     processHeap: 2500,
-    totalMem: 16000,
+    totalMem: 16_000,
   };
 
   const worker = new Worker({
@@ -589,7 +594,7 @@ it('should check for memory limits and not restart if under absolute limit', asy
   const memoryConfig = {
     limit: 2600,
     processHeap: 2500,
-    totalMem: 16000,
+    totalMem: 16_000,
   };
 
   const worker = new Worker({
@@ -616,7 +621,7 @@ it('should check for memory limits and restart if above percentage limit', async
   const memoryConfig = {
     limit: 0.01,
     processHeap: 2500,
-    totalMem: 16000,
+    totalMem: 16_000,
   };
 
   const worker = new Worker({
@@ -643,7 +648,7 @@ it('should check for memory limits and restart if above absolute limit', async (
   const memoryConfig = {
     limit: 2000,
     processHeap: 2500,
-    totalMem: 16000,
+    totalMem: 16_000,
   };
 
   const worker = new Worker({

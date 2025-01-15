@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -54,7 +54,7 @@ describe('DOMCollection plugin for list items', () => {
   ].join('');
 
   const form = document.createElement('form');
-  form.appendChild(select);
+  form.append(select);
 
   const expectedOption1 = [
     '  <option',
@@ -87,6 +87,7 @@ describe('DOMCollection plugin for list items', () => {
   ].join('\n');
 
   it('supports HTMLCollection for getElementsByTagName', () => {
+    // eslint-disable-next-line unicorn/prefer-query-selector
     const options = form.getElementsByTagName('option');
     expect(options).toPrettyPrintTo(expectedHTMLCollection);
   });

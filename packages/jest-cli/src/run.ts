@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -16,7 +16,6 @@ import {deprecationEntries} from 'jest-config';
 import {clearLine, tryRealpath} from 'jest-util';
 import {validateCLIOptions} from 'jest-validate';
 import * as args from './args';
-import init from './init';
 
 export async function run(
   maybeArgv?: Array<string>,
@@ -24,12 +23,6 @@ export async function run(
 ): Promise<void> {
   try {
     const argv = await buildArgv(maybeArgv);
-
-    if (argv.init) {
-      await init();
-      return;
-    }
-
     const projects = getProjectListFromCLIArgs(argv, project);
 
     const {results, globalConfig} = await runCLI(argv, projects);
@@ -86,13 +79,13 @@ export async function buildArgv(
 }
 
 const getProjectListFromCLIArgs = (argv: Config.Argv, project?: string) => {
-  const projects = argv.projects ? argv.projects : [];
+  const projects = argv.projects ?? [];
 
   if (project) {
     projects.push(project);
   }
 
-  if (!projects.length && process.platform === 'win32') {
+  if (projects.length === 0 && process.platform === 'win32') {
     try {
       projects.push(tryRealpath(process.cwd()));
     } catch {
@@ -101,7 +94,7 @@ const getProjectListFromCLIArgs = (argv: Config.Argv, project?: string) => {
     }
   }
 
-  if (!projects.length) {
+  if (projects.length === 0) {
     projects.push(process.cwd());
   }
 
@@ -132,11 +125,17 @@ const readResultsAndExit = (
     }
 
     exit(code);
-  } else if (!globalConfig.detectOpenHandles) {
+  } else if (
+    !globalConfig.detectOpenHandles &&
+    globalConfig.openHandlesTimeout !== 0
+  ) {
+    const timeout = globalConfig.openHandlesTimeout;
     setTimeout(() => {
       console.warn(
         chalk.yellow.bold(
-          'Jest did not exit one second after the test run has completed.\n\n',
+          `Jest did not exit ${
+            timeout === 1000 ? 'one second' : `${timeout / 1000} seconds`
+          } after the test run has completed.\n\n'`,
         ) +
           chalk.yellow(
             'This usually means that there are asynchronous operations that ' +
@@ -144,6 +143,6 @@ const readResultsAndExit = (
               '`--detectOpenHandles` to troubleshoot this issue.',
           ),
       );
-    }, 1000).unref();
+    }, timeout).unref();
   }
 };

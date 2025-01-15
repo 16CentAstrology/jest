@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -57,7 +57,13 @@ export const buildFailureTestResult = (
   openHandles: [],
   perfStats: {
     end: 0,
+    loadTestEnvironmentEnd: 0,
+    loadTestEnvironmentStart: 0,
     runtime: 0,
+    setupAfterEnvEnd: 0,
+    setupAfterEnvStart: 0,
+    setupFilesEnd: 0,
+    setupFilesStart: 0,
     slow: false,
     start: 0,
   },
@@ -155,7 +161,13 @@ export const createEmptyTestResult = (): TestResult => ({
   openHandles: [],
   perfStats: {
     end: 0,
+    loadTestEnvironmentEnd: 0,
+    loadTestEnvironmentStart: 0,
     runtime: 0,
+    setupAfterEnvEnd: 0,
+    setupAfterEnvStart: 0,
+    setupFilesEnd: 0,
+    setupFilesStart: 0,
     slow: false,
     start: 0,
   },

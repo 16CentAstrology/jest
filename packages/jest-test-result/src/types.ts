@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,7 +8,7 @@
 import type {V8Coverage} from 'collect-v8-coverage';
 import type {CoverageMap, CoverageMapData} from 'istanbul-lib-coverage';
 import type {ConsoleBuffer} from '@jest/console';
-import type {Config, TestResult, TransformTypes} from '@jest/types';
+import type {Circus, Config, TestResult, TransformTypes} from '@jest/types';
 import type {IHasteFS, IModuleMap} from 'jest-haste-map';
 import type Resolver from 'jest-resolve';
 
@@ -77,7 +77,7 @@ export type AggregatedResult = AggregatedResultWithoutCoverage & {
 
 export type TestResultsProcessor = (
   results: AggregatedResult,
-) => AggregatedResult;
+) => AggregatedResult | Promise<AggregatedResult>;
 
 export type Suite = {
   title: string;
@@ -85,12 +85,17 @@ export type Suite = {
   tests: Array<AssertionResult>;
 };
 
-export type TestCaseResult = AssertionResult;
+export type TestCaseResult = AssertionResult & {startedAt?: number | null};
 
 export type TestResult = {
   console?: ConsoleBuffer;
   coverage?: CoverageMapData;
   displayName?: Config.DisplayName;
+  /**
+   * Whether [`test.failing()`](https://jestjs.io/docs/api#testfailingname-fn-timeout)
+   * was used.
+   */
+  failing?: boolean;
   failureMessage?: string | null;
   leaks: boolean;
   memoryUsage?: number;
@@ -101,7 +106,13 @@ export type TestResult = {
   openHandles: Array<Error>;
   perfStats: {
     end: number;
+    loadTestEnvironmentEnd: number;
+    loadTestEnvironmentStart: number;
     runtime: number;
+    setupAfterEnvEnd: number;
+    setupAfterEnvStart: number;
+    setupFilesEnd: number;
+    setupFilesStart: number;
     slow: boolean;
     start: number;
   };
@@ -125,7 +136,7 @@ export type FormattedTestResult = {
   message: string;
   name: string;
   summary: string;
-  status: 'failed' | 'passed';
+  status: 'failed' | 'passed' | 'skipped' | 'focused';
   startTime: number;
   endTime: number;
   coverage: unknown;
@@ -197,7 +208,8 @@ export type TestEvents = {
   'test-file-start': [Test];
   'test-file-success': [Test, TestResult];
   'test-file-failure': [Test, SerializableError];
-  'test-case-result': [string, AssertionResult];
+  'test-case-start': [string, Circus.TestCaseStartInfo];
+  'test-case-result': [string, TestCaseResult];
 };
 
 export type TestFileEvent<T extends keyof TestEvents = keyof TestEvents> = (

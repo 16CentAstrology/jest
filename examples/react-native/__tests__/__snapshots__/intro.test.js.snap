@@ -64,12 +64,13 @@ exports[`renders the FlatList component 1`] = `
   onScrollEndDrag={[Function]}
   removeClippedSubviews={false}
   renderItem={[Function]}
-  scrollEventThrottle={50}
+  scrollEventThrottle={0.0001}
   stickyHeaderIndices={[]}
   viewabilityConfigCallbackPairs={[]}
 >
   <View>
     <View
+      onFocusCapture={[Function]}
       onLayout={[Function]}
       style={null}
     >
@@ -78,6 +79,7 @@ exports[`renders the FlatList component 1`] = `
       </Text>
     </View>
     <View
+      onFocusCapture={[Function]}
       onLayout={[Function]}
       style={null}
     >
@@ -86,6 +88,7 @@ exports[`renders the FlatList component 1`] = `
       </Text>
     </View>
     <View
+      onFocusCapture={[Function]}
       onLayout={[Function]}
       style={null}
     >

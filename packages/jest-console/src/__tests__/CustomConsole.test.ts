@@ -1,11 +1,12 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 import {Writable} from 'stream';
+import type {WriteStream} from 'tty';
 import chalk = require('chalk');
 import CustomConsole from '../CustomConsole';
 
@@ -23,14 +24,14 @@ describe('CustomConsole', () => {
         _stdout += chunk.toString();
         callback();
       },
-    }) as NodeJS.WriteStream;
+    }) as WriteStream;
 
     const stderr = new Writable({
       write(chunk: string, _encoding, callback) {
         _stderr += chunk.toString();
         callback();
       },
-    }) as NodeJS.WriteStream;
+    }) as WriteStream;
 
     _console = new CustomConsole(stdout, stderr);
   });

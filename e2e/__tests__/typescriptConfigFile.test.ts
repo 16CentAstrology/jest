@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -8,7 +8,7 @@
 import {tmpdir} from 'os';
 import * as path from 'path';
 import {cleanup, writeFiles} from '../Utils';
-import runJest from '../runJest';
+import runJest, {getConfig} from '../runJest';
 
 const DIR = path.resolve(tmpdir(), 'typescript-config-file');
 
@@ -106,4 +106,20 @@ test('works with multiple typescript configs that import something', () => {
   expect(stderr).toContain('Test Suites: 4 passed, 4 total');
   expect(exitCode).toBe(0);
   expect(stdout).toBe('');
+});
+
+test("works with single typescript config that does not import anything with project's moduleResolution set to Node16", () => {
+  const {configs} = getConfig(
+    'typescript-config/modern-module-resolution',
+    [],
+    {
+      skipPkgJsonCheck: true,
+    },
+  );
+
+  expect(configs).toHaveLength(1);
+  expect(configs[0].displayName).toEqual({
+    color: 'white',
+    name: 'Config from modern ts file',
+  });
 });

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -76,4 +76,4 @@ test('force exits a worker that fails to exit gracefully', async () => {
   expect(pidNumber).not.toBeNaN();
 
   expect(await findProcess('pid', pidNumber)).toHaveLength(0);
-}, 15000);
+}, 15_000);

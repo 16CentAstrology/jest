@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -51,7 +51,7 @@ export default class HasteFS implements IHasteFS {
   }
 
   getAllFiles(): Array<string> {
-    return Array.from(this.getAbsoluteFileIterator());
+    return [...this.getAbsoluteFileIterator()];
   }
 
   getFileIterator(): Iterable<string> {

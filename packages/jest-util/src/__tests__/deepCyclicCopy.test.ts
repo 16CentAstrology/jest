@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -15,7 +15,7 @@ it('returns the same value for primitive or function values', () => {
   expect(deepCyclicCopy(null)).toBeNull();
   expect(deepCyclicCopy(true)).toBe(true);
   expect(deepCyclicCopy(42)).toBe(42);
-  expect(Number.isNaN(deepCyclicCopy(NaN))).toBe(true);
+  expect(Number.isNaN(deepCyclicCopy(Number.NaN))).toBe(true);
   expect(deepCyclicCopy('foo')).toBe('foo');
   expect(deepCyclicCopy(fn)).toBe(fn);
 });
